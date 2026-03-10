@@ -31,11 +31,11 @@ from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple
 from urllib.parse import urlparse
 from zoneinfo import ZoneInfo
 # import ziptimezone as zpt
-from app.core.logger import setup_logger
+import logging
 if TYPE_CHECKING:
     from app.schemas.request import LeadRequest
     
-logger = setup_logger(__name__)
+logger = logging.getLogger(__name__)
 # --- Pre-compiled regex (module-level — one-time cost) ---
 _RE_VER_SCORE = re.compile(r"-ver(\d+)")
 _RE_EXP_SCORE = re.compile(r"-exp:(\d+)")
