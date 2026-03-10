@@ -30,7 +30,7 @@ from math import asin, cos, radians, sin, sqrt
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple
 from urllib.parse import urlparse
 from zoneinfo import ZoneInfo
-import ziptimezone as zpt
+# import ziptimezone as zpt
 from app.core.logger import setup_logger
 if TYPE_CHECKING:
     from app.schemas.request import LeadRequest
@@ -207,51 +207,47 @@ def compute_distance_km(
         logger.warning("compute_distance_km failed: %s", exc)
         return None
 # === TIMEZONE NORMALIZATION & MATCH ======================
+# === TIMEZONE NORMALIZATION & MATCH ======================
 def normalize_us_timezone(tz_raw: Optional[str]) -> Optional[str]:
     if tz_raw is None:
         return None
     tz_str = str(tz_raw)
     result = ""
     if re.search(r'New_York|Detroit|Indiana|Kentucky|Toronto', tz_str, re.IGNORECASE):
-        result = 'America/New_York'
+        result = 'US/Eastern'
     if re.search(r'Chicago|Winnipeg', tz_str, re.IGNORECASE):
-        result = 'America/Chicago'
+        result = 'US/Central'
     if re.search(r'Denver|Boise', tz_str, re.IGNORECASE):
-        result = 'America/Denver'
+        result = 'US/Mountain'
     if re.search(r'Los_Angeles|Vancouver', tz_str, re.IGNORECASE):
-        result = 'America/Los_Angeles'
+        result = 'US/Pacific'
     if re.search(r'Phoenix', tz_str, re.IGNORECASE):
-        result = 'America/Phoenix'
+        result = 'US/Arizona'
     return result if result != "" else None
+
 @lru_cache(maxsize=5000)
-def get_official_timezone(zip_code: Optional[str]) -> Optional[str]:
-    if not zip_code:
+def get_official_timezone(state: Optional[str]) -> Optional[str]:
+    """Zero-dependency timezone lookup using the existing STATE_TIMEZONE_MAP"""
+    if not state:
         return None
-    try:
-        zip_str = str(zip_code).split(".")[0].zfill(5)
-        if zip_str.startswith(("85", "86")):
-            return "America/Phoenix"
-        # official_name = zpt.get_timezone_by_zip(zip_str)
-        # tz_map = {
-        #     "Eastern": "America/New_York",
-        #     "Central": "America/Chicago",
-        #     "Mountain": "America/Denver",
-        #     "Pacific": "America/Los_Angeles",
-        #     "Phoenix": "America/Phoenix",
-        # }
-        # return tz_map.get(official_name)
-        return None
-    except Exception:
-        return None
+    
+    # Arizona doesn't observe Daylight Savings, so we handle it specifically
+    state_lower = state.strip().lower()
+    if state_lower == "az":
+        return "US/Arizona"
+        
+    return STATE_TIMEZONE_MAP.get(state_lower)
+
 def compute_timezone_match(
     tz_raw: Optional[str],
-    postal_code: Optional[str],
+    state: Optional[str],
 ) -> bool:
     normalized = normalize_us_timezone(tz_raw)
-    official = get_official_timezone(postal_code)
-    # Exactly mirrors: normalized_tz.fillna("").astype(str).str.strip() == df["official_timezone"].fillna("").astype(str)
+    official = get_official_timezone(state)
+    
     norm_str = "" if normalized is None else str(normalized).strip()
     off_str = "" if official is None else str(official)
+    
     return norm_str == off_str
 def compute_trestle_matches(
     addr_city:          Optional[str],
@@ -615,7 +611,7 @@ class FeatureEngineer:
         lead = self._lead
         lead.trustedform_timezone_match = compute_timezone_match(
             lead.trustedform_timezone,
-            lead.addr_zip,
+            lead.addr_state,
         )
 
     def _enrich_submission_hour(self) -> None:
